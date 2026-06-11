@@ -1,7 +1,6 @@
-# DECISIONS.md
+## Day 1 — Project setup and webhook receiver
 
-## Day 1 — Folder structure
-
-Separated the project into agent/, memory/, api/, and tools/ 
-to enforce separation of concerns. Each module has one job and 
-can be tested and modified independently without breaking others.
+Chose FastAPI over Flask because it supports async out of the box which 
+will matter when the agent is making multiple API calls at once. Built a 
+webhook receiver that listens for GitHub CI failure events and verifies 
+the request signature to make sure it actually came from GitHub.
