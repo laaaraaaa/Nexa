@@ -1,15 +1,38 @@
-## Day 1 — Project setup and webhook receiver
+# DECISIONS.md
 
-Chose FastAPI over Flask because it supports async out of the box which 
-will matter when the agent is making multiple API calls at once. Built a 
-webhook receiver that listens for GitHub CI failure events and verifies 
-the request signature to make sure it actually came from GitHub.
+## Decision 1 — Chose FastAPI over Flask
 
-## Day 2 — Cloudflared tunnel and GitHub webhook
+FastAPI supports async out of the box which matters because the orchestrator 
+will be making multiple concurrent API calls. Also has built-in Pydantic 
+validation which we'll use heavily for agent message schemas.
 
-We set up Cloudflared tunnel, a tool that gives your local server a public URL so GitHub can send webhook events to it. Without it GitHub can't reach your laptop because it's behind a home network. Then we registered that URL as a webhook on your GitHub repo and told it to fire on workflow_run events. We also created a failing GitHub Actions workflow to test it.
+## Decision 2 — Separated project into modules
 
-## Day 3 — PostgreSQL + pgvector + episodic memory table
+Split into agent/, memory/, api/, and tools/ folders to enforce separation 
+of concerns. Each module has one job and can be tested and modified 
+independently without breaking others.
 
-Chose PostgreSQL with pgvector over dedicated vector databases like Pinecone because we already need PostgreSQL for storing structured data like repo names, error messages, and fix history. Adding pgvector means we get vector similarity search in the same database without managing a second service. The error_embedding column stores a numerical representation of the error message, this lets Nexa find similar past failures by comparing vectors instead of doing exact text matching.
+## Decision 3 — Webhook signature verification
+
+GitHub signs every webhook payload with HMAC-SHA256. We verify this to ensure 
+only GitHub can trigger our agent. Skipped in dev if secret is empty to make 
+local testing easier.
+
+## Decision 4 — PostgreSQL + pgvector over dedicated vector DB
+
+We already need PostgreSQL for structured data like repo names, error messages, 
+and fix history. Adding pgvector gives us vector similarity search in the same 
+database without managing a second service like Pinecone.
+
+## Decision 5 — UUIDs over auto-incrementing integers
+
+Used UUIDs as primary keys so memory IDs are globally unique and unpredictable. 
+Auto-incrementing IDs are sequential and expose how many records exist — UUIDs 
+are safer and work better in distributed systems.
+
+## Decision 6 — Episodic memory as the first memory layer
+
+Started with episodic memory (what happened) before semantic or procedural 
+because it's the foundation everything else builds on. You can't derive 
+patterns without first recording raw events.
 
