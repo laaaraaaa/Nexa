@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 
 from app.memory.database import AsyncSessionLocal
-from app.memory.operations import store_memory, search_similar_failures
+from app.agent.orchestrator import analyze_failure
 
 load_dotenv()
 
@@ -53,21 +53,18 @@ async def github_webhook(
             print(f"   Repo     : {repo}")
             print(f"   Workflow : {name}")
 
-            # Store this failure in memory
+            # Wake up the orchestrator
             async with AsyncSessionLocal() as db:
-                # Search for similar past failures first
-                similar = await search_similar_failures(db, error_embedding=None)
-                if similar:
-                    print(f"   🧠 Found {len(similar)} similar past failures")
-
-                # Store the new failure
-                await store_memory(
-                    db=db,
+                result = await analyze_failure(
                     repo=repo,
                     workflow_name=name,
-                    error_type="workflow_failure",
                     error_message=f"Workflow '{name}' failed in {repo}",
+                    db=db
                 )
-                print(f"   💾 Failure stored in memory")
+                print(f"\n✅ Orchestrator complete:")
+                print(f"   Error type : {result['error_type']}")
+                print(f"   Root cause : {result['root_cause']}")
+                print(f"   Fix        : {result['fix']}")
+                print(f"   Confidence : {result['confidence']}")
 
     return {"status": "received"}
