@@ -1,6 +1,7 @@
 from groq import Groq
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.memory.operations import store_memory, search_similar_failures, get_recent_failures
+from app.tools.github_client import get_workflow_run_logs
 import os
 
 # Initialize the Groq client with our API key
@@ -10,6 +11,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 async def analyze_failure(
     repo: str,
     workflow_name: str,
+    run_id: int,
     error_message: str,
     db: AsyncSession
 ) -> dict:
@@ -21,6 +23,15 @@ async def analyze_failure(
     """
 
     print(f"\n🤖 Orchestrator awakened for {repo}")
+
+    # Step 0 — Fetch the real failure logs from GitHub
+    try:
+        real_logs = get_workflow_run_logs(repo, run_id)
+        print(f"📋 Fetched real logs:\n{real_logs}")
+        if real_logs and real_logs != "No detailed failure info found":
+            error_message = real_logs
+    except Exception as e:
+        print(f"⚠️ Could not fetch real logs: {e}")
 
     # Step 1 — Check recent history for this repo
     recent = await get_recent_failures(db=db, repo=repo, limit=5)

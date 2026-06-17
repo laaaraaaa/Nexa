@@ -49,22 +49,20 @@ async def github_webhook(
         repo = payload.get("repository", {}).get("full_name")
 
         if conclusion == "failure":
+            run_id = payload.get("workflow_run", {}).get("id")
             print(f"\n🔴 CI FAILURE DETECTED")
             print(f"   Repo     : {repo}")
             print(f"   Workflow : {name}")
+            print(f"   Run ID   : {run_id}")
 
             # Wake up the orchestrator
             async with AsyncSessionLocal() as db:
                 result = await analyze_failure(
                     repo=repo,
                     workflow_name=name,
+                    run_id=run_id,
                     error_message=f"Workflow '{name}' failed in {repo}",
                     db=db
                 )
-                print(f"\n✅ Orchestrator complete:")
-                print(f"   Error type : {result['error_type']}")
-                print(f"   Root cause : {result['root_cause']}")
-                print(f"   Fix        : {result['fix']}")
-                print(f"   Confidence : {result['confidence']}")
 
     return {"status": "received"}
