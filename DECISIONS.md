@@ -36,3 +36,10 @@ Started with episodic memory (what happened) before semantic or procedural
 because it's the foundation everything else builds on. You can't derive 
 patterns without first recording raw events.
 
+## Decision 7 — Only attempt autonomous fixes on HIGH confidence
+
+If Nexa automatically applies a fix it's not sure about, it could introduce 
+a broken change on top of the original failure — making things worse. Lower 
+confidence fixes are surfaced to humans instead of acted on automatically. 
+This is the human-in-the-loop pattern: automate what you're sure about, 
+escalate what you're not.
