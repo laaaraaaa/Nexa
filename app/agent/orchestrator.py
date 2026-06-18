@@ -1,8 +1,14 @@
 from groq import Groq
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.memory.operations import store_memory, search_similar_failures, get_recent_failures
-from app.tools.github_client import get_workflow_run_logs
 import os
+from app.tools.github_client import (
+    get_workflow_run_logs,
+    create_fix_branch,
+    update_file_on_branch,
+    open_pull_request,
+    get_github_client
+)
 
 # Initialize the Groq client with our API key
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -102,3 +108,79 @@ CONFIDENCE: <HIGH, MEDIUM, or LOW>
         "confidence": parsed.get("CONFIDENCE"),
         "raw_analysis": analysis
     }
+
+async def attempt_autonomous_fix(
+    repo: str,
+    analysis: dict
+) -> dict:
+    """
+    Attempts to autonomously fix simple, well-understood failures.
+    For now, only handles the case where the fix is a pip install
+    that's missing from requirements.txt.
+    
+    This is intentionally conservative — we only act automatically
+    when confidence is HIGH and the fix pattern is recognized.
+    """
+    fix = analysis.get("fix", "")
+    confidence = analysis.get("confidence", "")
+
+    # Only attempt autonomous action on high-confidence pip install fixes
+    if confidence != "HIGH" or "pip install" not in fix.lower():
+        print(f"🛑 Skipping autonomous fix — confidence: {confidence}, fix type not supported yet")
+        return {"attempted": False, "reason": "fix type not supported or confidence too low"}
+
+    try:
+        # Extract the package name from "pip install X"
+        import re
+        match = re.search(r"pip install\s+([a-zA-Z0-9_\-]+)", fix)
+        if not match:
+            return {"attempted": False, "reason": "could not parse package name"}
+
+        package_name = match.group(1)
+        print(f"📦 Detected missing package: {package_name}")
+
+        # Step 1 — Create a new branch
+        branch_name = create_fix_branch(repo)
+
+        # Step 2 — Get current requirements.txt and add the package
+        client_repo = get_github_client().get_repo(repo)
+        current_file = client_repo.get_contents("requirements.txt", ref=branch_name)
+        current_content = current_file.decoded_content.decode("utf-8")
+
+        if package_name in current_content:
+            return {"attempted": False, "reason": "package already in requirements.txt"}
+
+        new_content = current_content.rstrip() + f"\n{package_name}\n"
+
+        # Step 3 — Commit the change
+        update_file_on_branch(
+            repo_full_name=repo,
+            branch_name=branch_name,
+            file_path="requirements.txt",
+            new_content=new_content,
+            commit_message=f"fix: add missing dependency {package_name}"
+        )
+
+        # Step 4 — Open the PR
+        pr_url = open_pull_request(
+            repo_full_name=repo,
+            branch_name=branch_name,
+            title=f"🤖 Nexa: Add missing dependency '{package_name}'",
+            body=f"""## Autonomous fix by Nexa
+
+**Root cause:** {analysis.get('root_cause')}
+
+**Fix applied:** Added `{package_name}` to `requirements.txt`
+
+**Confidence:** {confidence}
+
+---
+*This PR was created autonomously by Nexa based on CI failure analysis and memory of past similar failures.*
+"""
+        )
+
+        return {"attempted": True, "success": True, "pr_url": pr_url}
+
+    except Exception as e:
+        print(f"❌ Autonomous fix failed: {e}")
+        return {"attempted": True, "success": False, "error": str(e)}

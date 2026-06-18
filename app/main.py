@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 
 from app.memory.database import AsyncSessionLocal
-from app.agent.orchestrator import analyze_failure
+from app.agent.orchestrator import analyze_failure, attempt_autonomous_fix
 
 load_dotenv()
 
@@ -64,5 +64,14 @@ async def github_webhook(
                     error_message=f"Workflow '{name}' failed in {repo}",
                     db=db
                 )
+                print(f"\n✅ Orchestrator complete:")
+                print(f"   Error type : {result['error_type']}")
+                print(f"   Root cause : {result['root_cause']}")
+                print(f"   Fix        : {result['fix']}")
+                print(f"   Confidence : {result['confidence']}")
+
+                # Attempt an autonomous fix if conditions are right
+                fix_result = await attempt_autonomous_fix(repo=repo, analysis=result)
+                print(f"\n🔧 Autonomous fix attempt: {fix_result}")
 
     return {"status": "received"}
