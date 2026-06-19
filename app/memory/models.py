@@ -1,5 +1,5 @@
 # SQLAlchemy column types
-from sqlalchemy import Column, String, DateTime, Text, Boolean
+from sqlalchemy import Column, String, DateTime, Text, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 from datetime import datetime
@@ -32,6 +32,9 @@ class EpisodicMemory(Base):
     fix_attempted = Column(Text)
     fix_successful = Column(Boolean, default=False)
 
+    # PR number if Nexa opened a fix PR
+    pr_number = Column(Integer, nullable=True)
+
     # Vector embedding of the error — this is what makes similarity
     # search possible. 1536 is the dimension size for OpenAI embeddings
     # We'll generate these when we add the AI layer
@@ -43,3 +46,4 @@ class EpisodicMemory(Base):
 
     def __repr__(self):
         return f"<EpisodicMemory repo={self.repo} fix_successful={self.fix_successful}>"
+    

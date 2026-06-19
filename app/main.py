@@ -5,6 +5,7 @@ import os
 
 from app.memory.database import AsyncSessionLocal
 from app.agent.orchestrator import analyze_failure, attempt_autonomous_fix
+from app.agent.validator import check_pr_ci_status, update_memory_with_fix_result
 
 load_dotenv()
 
@@ -73,5 +74,43 @@ async def github_webhook(
                 # Attempt an autonomous fix if conditions are right
                 fix_result = await attempt_autonomous_fix(repo=repo, analysis=result)
                 print(f"\n🔧 Autonomous fix attempt: {fix_result}")
+
+                # If a PR was opened, store the PR number in memory
+                if fix_result.get("success") and fix_result.get("pr_number"):
+                    print(f"📌 PR #{fix_result['pr_number']} linked to this failure")
+
+    if x_github_event == "check_run":
+        # A CI check completed on some commit
+        action = payload.get("action")
+        conclusion = payload.get("check_run", {}).get("conclusion")
+        
+        # Only care about completed check runs
+        if action == "completed" and conclusion in ["success", "failure"]:
+            # Check if this is on a Nexa-created PR branch
+            pr_numbers = [
+                pr.get("number") 
+                for pr in payload.get("check_run", {}).get("pull_requests", [])
+            ]
+            
+            repo = payload.get("repository", {}).get("full_name")
+            
+            for pr_number in pr_numbers:
+                print(f"\n🔍 Check run completed on PR #{pr_number} — {conclusion}")
+                
+                async with AsyncSessionLocal() as db:
+                    # Check the full CI status for this PR
+                    status = await check_pr_ci_status(
+                        db=db,
+                        repo_full_name=repo,
+                        pr_number=pr_number
+                    )
+                    
+                    if status["all_complete"]:
+                        # Update memory with whether the fix worked
+                        await update_memory_with_fix_result(
+                            db=db,
+                            pr_number=pr_number,
+                            fix_successful=status["all_passed"]
+                        )
 
     return {"status": "received"}

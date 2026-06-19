@@ -179,7 +179,9 @@ async def attempt_autonomous_fix(
 """
         )
 
-        return {"attempted": True, "success": True, "pr_url": pr_url}
+        # Extract PR number from URL (last part of https://github.com/owner/repo/pull/123)
+        pr_number = int(pr_url.split("/")[-1])
+        return {"attempted": True, "success": True, "pr_url": pr_url, "pr_number": pr_number}
 
     except Exception as e:
         print(f"❌ Autonomous fix failed: {e}")

@@ -13,11 +13,11 @@ async def store_memory(
     error_message: str,
     fix_attempted: str = None,
     fix_successful: bool = False,
-    error_embedding: list = None
+    error_embedding: list = None,
+    pr_number: int = None        # ← add this
 ) -> EpisodicMemory:
     """
     Store a new CI failure memory in the database.
-    Called every time Nexa sees a failure or completes a fix attempt.
     """
     memory = EpisodicMemory(
         id=uuid.uuid4(),
@@ -27,7 +27,8 @@ async def store_memory(
         error_message=error_message,
         fix_attempted=fix_attempted,
         fix_successful=fix_successful,
-        error_embedding=error_embedding
+        error_embedding=error_embedding,
+        pr_number=pr_number        # ← add this
     )
 
     db.add(memory)
