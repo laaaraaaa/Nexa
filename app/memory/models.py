@@ -36,9 +36,9 @@ class EpisodicMemory(Base):
     pr_number = Column(Integer, nullable=True)
 
     # Vector embedding of the error — this is what makes similarity
-    # search possible. 1536 is the dimension size for OpenAI embeddings
+    # search possible. 384 is the dimension size for OpenAI embeddings
     # We'll generate these when we add the AI layer
-    error_embedding = Column(Vector(1536), nullable=True)
+    error_embedding = Column(Vector(384), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

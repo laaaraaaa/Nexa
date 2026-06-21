@@ -1,4 +1,5 @@
 from groq import Groq
+from app.memory.embeddings import get_embedding
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.memory.operations import store_memory, search_similar_failures, get_recent_failures
 import os
@@ -41,6 +42,15 @@ async def analyze_failure(
 
     # Step 1 — Check recent history for this repo
     recent = await get_recent_failures(db=db, repo=repo, limit=5)
+
+    # Step 1.5 — Semantic search: find similar past failures by meaning, not just recency
+    error_embedding_for_search = get_embedding(error_message)
+    similar_failures = await search_similar_failures(
+        db=db,
+        error_embedding=error_embedding_for_search,
+        limit=3
+    )
+    
     history_context = ""
     if recent:
         history_context = "\n".join([
@@ -50,6 +60,14 @@ async def analyze_failure(
         print(f"🧠 Found {len(recent)} past failures in memory")
     else:
         print(f"🧠 No past failures found — starting fresh")
+
+    if similar_failures:
+        print(f"🎯 Found {len(similar_failures)} SEMANTICALLY similar past failures")
+        semantic_context = "\n".join([
+            f"- Similar error: {m.error_type} | Fix: {m.fix_attempted} | Worked: {m.fix_successful}"
+            for m in similar_failures
+        ])
+        history_context += f"\n\nSemantically similar failures (by meaning, not just recency):\n{semantic_context}"
 
     # Step 2 — Ask the LLM to analyze and suggest a fix
     prompt = f"""You are Nexa, an autonomous CI/CD healing agent.
@@ -89,7 +107,9 @@ CONFIDENCE: <HIGH, MEDIUM, or LOW>
             key, value = line.split(":", 1)
             parsed[key.strip()] = value.strip()
 
-    # Step 4 — Store this analysis in memory
+    # Step 4 — Generate embedding and store this analysis in memory
+    embedding = get_embedding(error_message)
+    
     await store_memory(
         db=db,
         repo=repo,
@@ -97,7 +117,8 @@ CONFIDENCE: <HIGH, MEDIUM, or LOW>
         error_type=parsed.get("ERROR_TYPE", "unknown"),
         error_message=error_message,
         fix_attempted=parsed.get("FIX", ""),
-        fix_successful=False  # we haven't tried it yet
+        fix_successful=False,  # we haven't tried it yet
+        error_embedding=embedding
     )
 
     return {
