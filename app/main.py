@@ -2,10 +2,10 @@ from fastapi import FastAPI, Request, Header, HTTPException
 import hmac, hashlib, json
 from dotenv import load_dotenv
 import os
-
 from app.memory.database import AsyncSessionLocal
 from app.agent.orchestrator import analyze_failure, attempt_autonomous_fix
 from app.agent.validator import check_pr_ci_status, update_memory_with_fix_result
+from app.memory.working_memory import set_fix_in_progress
 
 load_dotenv()
 
@@ -75,9 +75,19 @@ async def github_webhook(
                 fix_result = await attempt_autonomous_fix(repo=repo, analysis=result)
                 print(f"\n🔧 Autonomous fix attempt: {fix_result}")
 
-                # If a PR was opened, store the PR number in memory
+                # If a PR was opened, store the PR number in memory and Redis
                 if fix_result.get("success") and fix_result.get("pr_number"):
-                    print(f"📌 PR #{fix_result['pr_number']} linked to this failure")
+                    pr_number = fix_result["pr_number"]
+                    print(f"📌 PR #{pr_number} linked to this failure")
+                    set_fix_in_progress(
+                        repo=repo,
+                        pr_number=pr_number,
+                        fix_data={
+                            "fix": result.get("fix"),
+                            "confidence": result.get("confidence"),
+                            "error_type": result.get("error_type")
+                        }
+                    )
 
     if x_github_event == "check_run":
         # A CI check completed on some commit

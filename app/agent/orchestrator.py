@@ -3,6 +3,12 @@ from app.memory.embeddings import get_embedding
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.memory.operations import store_memory, search_similar_failures, get_recent_failures
 import os
+from app.memory.working_memory import (
+    set_active_run,
+    get_active_run,
+    clear_active_run,
+    is_repo_being_processed
+)
 from app.tools.github_client import (
     get_workflow_run_logs,
     create_fix_branch,
@@ -30,6 +36,26 @@ async def analyze_failure(
     """
 
     print(f"\n🤖 Orchestrator awakened for {repo}")
+
+    # Check if we're already processing a failure for this repo
+    # This prevents duplicate processing if GitHub fires the webhook twice
+    if is_repo_being_processed(repo):
+        print(f"⚠️ Already processing a failure for {repo} — skipping duplicate")
+        return {
+            "repo": repo,
+            "error_type": "duplicate",
+            "root_cause": "Already processing a failure for this repo",
+            "fix": None,
+            "confidence": "LOW",
+            "raw_analysis": None
+        }
+
+    # Store in Redis that we're actively working on this repo
+    set_active_run(repo, {
+        "run_id": run_id,
+        "workflow_name": workflow_name,
+        "status": "analyzing"
+    })
 
     # Step 0 — Fetch the real failure logs from GitHub
     try:
@@ -120,6 +146,9 @@ CONFIDENCE: <HIGH, MEDIUM, or LOW>
         fix_successful=False,  # we haven't tried it yet
         error_embedding=embedding
     )
+
+    # Clear the active run from Redis — we're done analyzing
+    clear_active_run(repo)
 
     return {
         "repo": repo,

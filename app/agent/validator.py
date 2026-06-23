@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.memory.models import EpisodicMemory
 from app.tools.github_client import get_github_client
+from app.memory.working_memory import set_fix_in_progress, clear_fix_in_progress
 import os
 
 
