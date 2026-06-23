@@ -6,10 +6,21 @@ from app.memory.database import AsyncSessionLocal
 from app.agent.orchestrator import analyze_failure, attempt_autonomous_fix
 from app.agent.validator import check_pr_ci_status, update_memory_with_fix_result
 from app.memory.working_memory import set_fix_in_progress
+from app.api.dashboard import router as dashboard_router
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
 app = FastAPI(title="Nexa")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(dashboard_router)
 
 GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 
