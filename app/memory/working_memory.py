@@ -5,9 +5,9 @@ import os
 
 # Connect to Redis
 _redis_client = redis.Redis(
-    host="localhost",
-    port=6379,
-    decode_responses=True  # automatically decode bytes to strings
+    host=os.getenv("REDIS_HOST", "localhost"),
+    port=int(os.getenv("REDIS_PORT", 6379)),
+    decode_responses=True
 )
 
 
