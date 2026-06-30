@@ -10,3 +10,4 @@ psycopg2-binary
 groq
 sentence-transformers
 redis==3.5.3
+PyGithub
